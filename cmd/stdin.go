@@ -44,16 +44,18 @@ func runStdIn(cmd *cobra.Command, _ []string) {
 		logging.Fatal().Err(err).Msg("invalid --set-attr value")
 	}
 
-	findings := newFindingCollector(mustGetStringFlag(cmd, "report-path") != "")
-	source := newStdinSource(os.Stdin, attrs, detector.SkipFunc(), detector.MaxArchiveDepth)
-	for result := range detector.Run(cmd.Context(), source) {
-		if result.Err != nil {
-			logging.Fatal().Err(result.Err).Msg("failed scan input from stdin")
-		}
-		collectFinding(detector, findings, result.Finding)
+	findings, err := detector.DetectSource(
+		cmd.Context(),
+		newStdinSource(os.Stdin, attrs, detector.SkipFunc(), detector.MaxArchiveDepth),
+	)
+
+	if err != nil {
+		// log fatal to exit, no need to continue since a report will not be
+		// generated when scanning from a pipe...for now
+		logging.Fatal().Err(err).Msg("failed scan input from stdin")
 	}
 
-	findingSummaryAndExit(detector, findings, exitCode, start, nil)
+	findingSummaryAndExit(detector, findings, exitCode, start, err)
 }
 
 func newStdinSource(content io.Reader, attrs map[string]string, shouldSkip sources.SkipFunc, maxArchiveDepth int) sources.Source {

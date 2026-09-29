@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/betterleaks/betterleaks/logging"
+	"github.com/betterleaks/betterleaks/report"
 	"github.com/betterleaks/betterleaks/sources"
 	"github.com/betterleaks/betterleaks/sources/scm"
 )
@@ -65,9 +66,12 @@ func runGit(cmd *cobra.Command, args []string) {
 	staged := mustGetBoolFlag(cmd, "staged")
 	preCommit := mustGetBoolFlag(cmd, "pre-commit")
 	gitWorkers := mustGetIntFlag(cmd, "git-workers")
-	findings := newFindingCollector(mustGetStringFlag(cmd, "report-path") != "")
+	noColor := mustGetBoolFlag(cmd, "no-color")
+	redact := mustGetUIntFlag(cmd, "redact")
+	verbose := mustGetBoolFlag(cmd, "verbose")
 
 	var (
+		findings    []report.Finding
 		err         error
 		src         sources.Source
 		scmPlatform scm.Platform
@@ -119,6 +123,7 @@ func runGit(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	detector.SkipFindingAppend = true
 	var scanErrs []error
 	for result := range detector.Run(cmd.Context(), src) {
 		if result.Err != nil {
@@ -128,7 +133,14 @@ func runGit(cmd *cobra.Command, args []string) {
 			continue
 		}
 
-		collectFinding(detector, findings, result.Finding)
+		findings = append(findings, result.Finding)
+		if verbose {
+			if detector.LegacyPrint {
+				result.Finding.PrintLegacy(noColor, redact)
+			} else {
+				result.Finding.Print(noColor, redact)
+			}
+		}
 	}
 
 	if n := len(scanErrs); n > 0 {
