@@ -24,24 +24,29 @@ Development is supported by
 
 ### Installation
 ```
-# Package managers
-brew install betterleaks
-brew install betterleaks/tap/betterleaks
+# Homebrew (v1 maintenance releases)
+brew install --cask betterleaks/tap/betterleaks@1
+# The versioned cask installs the command betterleaks-v1.
 
 # Fedora Linux
 sudo dnf install betterleaks
 
 # Containers
-docker pull ghcr.io/betterleaks/betterleaks:latest
+docker pull ghcr.io/betterleaks/betterleaks:v1
 
 # Go
 go install github.com/betterleaks/betterleaks@latest
 
 # Source
-git clone https://github.com/betterleaks/betterleaks
+git clone --branch v1.x https://github.com/betterleaks/betterleaks
 cd betterleaks
 make build
 ```
+
+The versioned Homebrew cask and Docker `:v1` tag are published by v1 maintenance
+releases using this configuration. Archive and source builds still provide the
+`betterleaks` command used in the examples below; Homebrew users can substitute
+`betterleaks-v1` to run v1 alongside v2.
 
 ### Usage
 ```

@@ -48,7 +48,7 @@ dockers_v2:
       - "ghcr.io/betterleaks/betterleaks"
     tags:
       - "{{ .Tag }}"
-      - "{{ if not .IsNightly }}latest{{ end }}"
+      - "{{ if and (not .Prerelease) (not .IsNightly) }}v1{{ end }}"
     dockerfile: goreleaser.Dockerfile
     platforms:
       - linux/amd64
@@ -62,9 +62,10 @@ dockers_v2:
       "org.opencontainers.image.revision": "{{ .FullCommit }}"
 
 homebrew_casks:
-  - name: betterleaks
+  - name: betterleaks@1
     binaries:
-      - betterleaks
+      # GoReleaser wraps this entry in binary "..."; set Homebrew's link target.
+      - 'betterleaks", target: "betterleaks-v1'
     homepage: "https://github.com/betterleaks/betterleaks"
     description: "Secrets scanner built on the legacy of gitleaks"
     skip_upload: auto
@@ -103,3 +104,4 @@ docker_signs:
 
 release:
   prerelease: auto
+  make_latest: false
