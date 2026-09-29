@@ -79,8 +79,8 @@ func runDetect(cmd *cobra.Command, args []string) {
 			FollowSymlinks:  detector.FollowSymlinks,
 			MaxFileSize:     detector.MaxTargetMegaBytes * 1_000_000,
 			Path:            sourcePath,
+			Sema:            detector.Sema,
 			MaxArchiveDepth: detector.MaxArchiveDepth,
-			Workers:         mustGetIntFlag(cmd, "source-workers"),
 		}
 	} else if fromPipe {
 		attrs, attrErr := parseSetAttrFlag(cmd)
@@ -90,21 +90,28 @@ func runDetect(cmd *cobra.Command, args []string) {
 
 		src = newStdinSource(os.Stdin, attrs, detector.SkipFunc(), detector.MaxArchiveDepth)
 	} else {
+		var (
+			gitCmd      *sources.GitCmd
+			scmPlatform scm.Platform
+		)
+
 		logOpts := mustGetStringFlag(cmd, "log-opts")
-		scmPlatform, platformErr := scm.PlatformFromString(mustGetStringFlag(cmd, "platform"))
-		if platformErr != nil {
-			logging.Fatal().Err(platformErr).Send()
+		if gitCmd, err = sources.NewGitLogCmdContext(cmd.Context(), sourcePath, logOpts); err != nil {
+			logging.Fatal().Err(err).Msg("could not create Git cmd")
+		}
+
+		if scmPlatform, err = scm.PlatformFromString(mustGetStringFlag(cmd, "platform")); err != nil {
+			logging.Fatal().Err(err).Send()
 		}
 		resolvedPlatform, remoteURL := sources.ResolveRemote(cmd.Context(), scmPlatform, sourcePath)
 
 		src = &sources.Git{
-			RepoPath:        sourcePath,
+			Cmd:             gitCmd,
 			ShouldSkip:      detector.SkipFunc(),
 			Platform:        resolvedPlatform,
 			RemoteURL:       remoteURL,
+			Sema:            detector.Sema,
 			MaxArchiveDepth: detector.MaxArchiveDepth,
-			LogOpts:         logOpts,
-			Workers:         mustGetIntFlag(cmd, "source-workers"),
 		}
 	}
 

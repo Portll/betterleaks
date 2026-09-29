@@ -18,7 +18,7 @@ func init() {
 	s3Cmd.Flags().String("secret-key", "", "AWS secret key (overrides AWS_SECRET_ACCESS_KEY)")
 	s3Cmd.Flags().String("session-token", "", "AWS session token (overrides AWS_SESSION_TOKEN)")
 	s3Cmd.Flags().Int64("max-object-size", 0, "objects larger than this many bytes are skipped (0 = 250 MiB default)")
-	s3Cmd.Flags().Int("workers", 0, "concurrent object fetches (0 = --source-workers or source default)")
+	s3Cmd.Flags().Int("workers", 0, "concurrent object fetches (0 = 16 default)")
 }
 
 var s3Cmd = &cobra.Command{
@@ -63,10 +63,6 @@ func runS3(cmd *cobra.Command, args []string) {
 
 	cfg := Config(cmd)
 	detector := Detector(cmd, cfg, ".")
-	workers := mustGetIntFlag(cmd, "workers")
-	if workers == 0 {
-		workers = mustGetIntFlag(cmd, "source-workers")
-	}
 
 	src := &sources.S3{
 		URL:             args[0],
@@ -76,7 +72,7 @@ func runS3(cmd *cobra.Command, args []string) {
 		SecretKey:       mustGetStringFlag(cmd, "secret-key"),
 		SessionToken:    mustGetStringFlag(cmd, "session-token"),
 		MaxObjectSize:   mustGetInt64Flag(cmd, "max-object-size"),
-		Workers:         workers,
+		Workers:         mustGetIntFlag(cmd, "workers"),
 		ShouldSkip:      detector.SkipFunc(),
 		MaxArchiveDepth: detector.MaxArchiveDepth,
 	}

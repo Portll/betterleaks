@@ -15,17 +15,16 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
+	"github.com/fatih/semgroup"
 	"github.com/gitleaks/go-gitdiff/gitdiff"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/betterleaks/betterleaks/logging"
 	"github.com/betterleaks/betterleaks/sources/scm"
 )
-
-const defaultGitFragmentWorkers = 40
 
 // GitCmd helps to work with Git's output.
 type GitCmd struct {
@@ -280,27 +279,6 @@ func (c *GitCmd) Wait() error {
 	return c.cmd.Wait()
 }
 
-// cancel stops the Git process so its output channels can be drained without
-// waiting for the rest of the command after a fragment worker fails.
-func (c *GitCmd) cancel() error {
-	if c == nil || c.cmd == nil {
-		return nil
-	}
-	if c.cmd.Cancel != nil {
-		if err := c.cmd.Cancel(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-			return err
-		}
-		return nil
-	}
-	if c.cmd.Process == nil {
-		return nil
-	}
-	if err := c.cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
-		return err
-	}
-	return nil
-}
-
 // String displays the command used for GitCmd
 func (c *GitCmd) String() string {
 	return c.cmd.String()
@@ -387,67 +365,37 @@ func listenForStdErr(stderr io.ReadCloser, errCh chan<- error) {
 
 // Git is a source for yielding fragments from a git repo
 type Git struct {
-	// Cmd scans an already-started Git command. When Cmd is nil, Fragments
-	// starts a history scan for RepoPath.
-	Cmd      *GitCmd
-	RepoPath string
-	LogOpts  string
-
+	Cmd             *GitCmd
 	ShouldSkip      SkipFunc
 	Platform        scm.Platform
 	RemoteURL       string
+	Sema            *semgroup.Group
 	MaxArchiveDepth int
-	// Workers controls parallel Git history processes for RepoPath scans. For
-	// an explicitly supplied Cmd, it controls fragment workers. Zero uses one
-	// history process or the Cmd fragment default, respectively.
-	Workers int
 }
 
 // Fragments yields fragments from a git repo
 func (s *Git) Fragments(ctx context.Context, yield FragmentsFunc) error {
-	if s.Cmd == nil {
-		if s.RepoPath == "" {
-			return errors.New("git source requires Cmd or RepoPath")
-		}
-		return s.fragmentsFromRepo(ctx, yield)
-	}
-	return s.fragmentsFromCmd(ctx, yield)
-}
-
-func (s *Git) fragmentsFromCmd(ctx context.Context, yield FragmentsFunc) error {
 	defer func() {
 		if err := s.Cmd.Wait(); err != nil {
 			logging.Debug().Err(err).Str("cmd", s.Cmd.String()).Msg("command aborted")
 		}
 	}()
 
-	g, groupCtx := errgroup.WithContext(ctx)
-	g.SetLimit(workerCount(s.Workers, defaultGitFragmentWorkers))
-
 	var (
 		diffFilesCh = s.Cmd.DiffFilesCh()
 		errCh       = s.Cmd.ErrCh()
+		wg          sync.WaitGroup
 	)
-	finish := func(producerErr error) error {
-		if groupCtx.Err() != nil {
-			producerErr = errors.Join(producerErr, s.Cmd.cancel())
-		}
-		producerErr = errors.Join(producerErr, drainGitOutput(diffFilesCh, errCh))
-		return waitForGitWorkers(g, groupCtx, producerErr)
-	}
 
 	// loop to range over both DiffFiles (stdout) and ErrCh (stderr)
 	for diffFilesCh != nil || errCh != nil {
 		select {
-		case <-groupCtx.Done():
-			return finish(nil)
+		case <-ctx.Done():
+			return ctx.Err()
 		case gitdiffFile, open := <-diffFilesCh:
 			if !open {
 				diffFilesCh = nil
 				break
-			}
-			if groupCtx.Err() != nil {
-				return finish(nil)
 			}
 
 			if gitdiffFile.IsDelete {
@@ -494,12 +442,12 @@ func (s *Git) fragmentsFromCmd(ctx context.Context, yield FragmentsFunc) error {
 				}
 			}
 
-			g.Go(func() error {
-				if groupCtx.Err() != nil {
-					return nil
-				}
+			wg.Add(1)
+			s.Sema.Go(func() error {
+				defer wg.Done()
+
 				if yieldAsArchive {
-					blob, err := s.Cmd.NewBlobReaderContext(groupCtx, commitSHA, gitdiffFile.NewName)
+					blob, err := s.Cmd.NewBlobReaderContext(ctx, commitSHA, gitdiffFile.NewName)
 					if err != nil {
 						logging.Error().Err(err).Msg("could not read archive blob")
 						return nil
@@ -513,7 +461,7 @@ func (s *Git) fragmentsFromCmd(ctx context.Context, yield FragmentsFunc) error {
 					}
 
 					// enrich and yield fragments
-					err = file.Fragments(groupCtx, func(fragment Fragment, err error) error {
+					err = file.Fragments(ctx, func(fragment Fragment, err error) error {
 						// create base attributes of the commit
 						attrs := maps.Clone(commitAttrs)
 						// add fragment-specific attributes (in case attributes have been enriched by the file source)
@@ -554,43 +502,18 @@ func (s *Git) fragmentsFromCmd(ctx context.Context, yield FragmentsFunc) error {
 				errCh = nil
 				break
 			}
-			if groupCtx.Err() != nil {
-				return finish(err)
-			}
 
-			return finish(yield(Fragment{}, err))
+			return yield(Fragment{}, err)
 		}
 	}
 
-	return waitForGitWorkers(g, groupCtx, nil)
-}
-
-func waitForGitWorkers(g *errgroup.Group, groupCtx context.Context, producerErr error) error {
-	groupErr := groupCtx.Err()
-	workerErr := g.Wait()
-	if workerErr != nil {
-		return errors.Join(producerErr, workerErr)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+		wg.Wait()
+		return nil
 	}
-	return errors.Join(producerErr, groupErr)
-}
-
-func drainGitOutput(diffFilesCh <-chan *gitdiff.File, errCh <-chan error) error {
-	var producerErr error
-	for diffFilesCh != nil || errCh != nil {
-		select {
-		case _, open := <-diffFilesCh:
-			if !open {
-				diffFilesCh = nil
-			}
-		case err, open := <-errCh:
-			if !open {
-				errCh = nil
-				continue
-			}
-			producerErr = errors.Join(producerErr, err)
-		}
-	}
-	return producerErr
 }
 
 // ResolveRemote resolves the SCM platform and remote URL for the given source.
