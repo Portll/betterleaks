@@ -78,7 +78,7 @@ func loadTestConfig(t *testing.T, cfgName string) *config.Config {
 	return cfg
 }
 
-func TestRunDoesNotRetainFindings(t *testing.T) {
+func TestRunRetainsFindings(t *testing.T) {
 	detector := NewDetectorContext(t.Context(), loadTestConfig(t, "simple"), ValidationOptions{})
 	source := &sources.Stdin{
 		Content: strings.NewReader("ghp_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
@@ -91,7 +91,18 @@ func TestRunDoesNotRetainFindings(t *testing.T) {
 	}
 
 	require.Len(t, findings, 1)
-	require.Empty(t, detector.findings)
+	require.Equal(t, findings, detector.Findings())
+	require.NotContains(t, findings[0].Attributes, sources.AttrFSFirstFragment)
+}
+
+func TestDetectSourceRetainsFindingsWithoutInternalAttributes(t *testing.T) {
+	detector := NewDetector(loadTestConfig(t, "simple"))
+	findings, err := detector.DetectSource(t.Context(), &sources.Stdin{
+		Content: strings.NewReader("ghp_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+	})
+	require.NoError(t, err)
+	require.Len(t, findings, 1)
+	require.Equal(t, findings, detector.Findings())
 	require.NotContains(t, findings[0].Attributes, sources.AttrFSFirstFragment)
 }
 
