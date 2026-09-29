@@ -77,7 +77,7 @@ func runHuggingFace(cmd *cobra.Command, args []string) {
 		Exclude:             exclude,
 		ExcludeRepos:        excludeRepos,
 		ShouldSkip:          detector.SkipFunc(),
-		MaxArchiveDepth:     mustGetIntFlag(cmd, "max-archive-depth"),
+		MaxArchiveDepth:     detector.MaxArchiveDepth,
 		Workers:             mustGetIntFlag(cmd, "source-workers"),
 		LogOpts:             mustGetStringFlag(cmd, "log-opts"),
 		MaxBucketObjectSize: mustGetInt64Flag(cmd, "max-bucket-object-size"),
@@ -97,7 +97,7 @@ func runHuggingFace(cmd *cobra.Command, args []string) {
 			logging.Error().Err(result.Err).Msg("scan error")
 			continue
 		}
-		collectFinding(cmd, findings, result.Finding)
+		collectFinding(detector, findings, result.Finding)
 	}
 
 	var scanErr error
@@ -107,5 +107,5 @@ func runHuggingFace(cmd *cobra.Command, args []string) {
 			errs: scanErrs,
 		}
 	}
-	findingSummaryAndExit(cmd, detector, findings, exitCode, start, scanErr)
+	findingSummaryAndExit(detector, findings, exitCode, start, scanErr)
 }

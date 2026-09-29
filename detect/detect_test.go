@@ -78,7 +78,7 @@ func loadTestConfig(t *testing.T, cfgName string) *config.Config {
 	return cfg
 }
 
-func TestRunStreamsFindings(t *testing.T) {
+func TestRunDoesNotRetainFindings(t *testing.T) {
 	detector := NewDetectorContext(t.Context(), loadTestConfig(t, "simple"), ValidationOptions{})
 	source := &sources.Stdin{
 		Content: strings.NewReader("ghp_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
@@ -91,6 +91,7 @@ func TestRunStreamsFindings(t *testing.T) {
 	}
 
 	require.Len(t, findings, 1)
+	require.Empty(t, detector.findings)
 	require.NotContains(t, findings[0].Attributes, sources.AttrFSFirstFragment)
 }
 
@@ -2493,6 +2494,8 @@ func TestFromGit(t *testing.T) {
 		t.Run(strings.Join([]string{tt.cfgName, tt.source, tt.logOpts}, "/"), func(t *testing.T) {
 			cfg := loadTestConfig(t, "simple")
 			detector := NewDetector(cfg)
+			detector.MaxArchiveDepth = 8
+
 			var ignorePath string
 			info, err := os.Stat(tt.source)
 			require.NoError(t, err)
@@ -2515,7 +2518,7 @@ func TestFromGit(t *testing.T) {
 					ShouldSkip:      detector.SkipFunc(),
 					Platform:        platform,
 					RemoteURL:       remoteURL,
-					MaxArchiveDepth: 8,
+					MaxArchiveDepth: detector.MaxArchiveDepth,
 				},
 			)
 			require.NoError(t, err)
@@ -2581,10 +2584,11 @@ func TestFromGitStaged(t *testing.T) {
 		findings, err := detector.DetectSource(
 			t.Context(),
 			&sources.Git{
-				Cmd:        gitCmd,
-				ShouldSkip: detector.SkipFunc(),
-				Platform:   platform,
-				RemoteURL:  remoteURL,
+				Cmd:             gitCmd,
+				ShouldSkip:      detector.SkipFunc(),
+				Platform:        platform,
+				RemoteURL:       remoteURL,
+				MaxArchiveDepth: detector.MaxArchiveDepth,
 			},
 		)
 		require.NoError(t, err)
@@ -2691,12 +2695,15 @@ func TestFromFiles(t *testing.T) {
 			err = detector.AddGitleaksIgnore(ignorePath)
 			require.NoError(t, err)
 
+			detector.FollowSymlinks = true
 			findings, err := detector.DetectSource(
 				t.Context(),
 				&sources.Files{
-					ShouldSkip:     detector.SkipFunc(),
-					FollowSymlinks: true,
-					Path:           tt.source,
+					ShouldSkip:      detector.SkipFunc(),
+					FollowSymlinks:  detector.FollowSymlinks,
+					MaxFileSize:     detector.MaxTargetMegaBytes * 1_000_000,
+					Path:            tt.source,
+					MaxArchiveDepth: detector.MaxArchiveDepth,
 				},
 			)
 			require.NoError(t, err)
@@ -3259,11 +3266,13 @@ func TestDetectWithArchives(t *testing.T) {
 
 			cfg := loadTestConfig(t, tt.cfgName)
 			detector := NewDetectorContext(ctx, cfg, ValidationOptions{})
+			detector.MaxArchiveDepth = 8
+
 			findings, err := detector.DetectSource(
 				ctx, &sources.Files{
 					Path:            tt.source,
 					ShouldSkip:      detector.SkipFunc(),
-					MaxArchiveDepth: 8,
+					MaxArchiveDepth: detector.MaxArchiveDepth,
 				},
 			)
 
@@ -3320,12 +3329,15 @@ func TestDetectWithSymlinks(t *testing.T) {
 	for _, tt := range tests {
 		cfg := loadTestConfig(t, "simple")
 		detector := NewDetector(cfg)
+		detector.FollowSymlinks = true
 		findings, err := detector.DetectSource(
 			t.Context(),
 			&sources.Files{
-				ShouldSkip:     detector.SkipFunc(),
-				FollowSymlinks: true,
-				Path:           tt.source,
+				ShouldSkip:      detector.SkipFunc(),
+				FollowSymlinks:  detector.FollowSymlinks,
+				MaxFileSize:     detector.MaxTargetMegaBytes * 1_000_000,
+				Path:            tt.source,
+				MaxArchiveDepth: detector.MaxArchiveDepth,
 			},
 		)
 		require.NoError(t, err)

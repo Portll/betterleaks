@@ -224,12 +224,9 @@ func TestIgnoreIssuesInBaseline(t *testing.T) {
 		d, err := NewDetectorDefaultConfig()
 		require.NoError(t, err)
 		d.baseline = test.baseline
-		kept := 0
 		for _, finding := range test.findings {
-			if !d.ignore(finding) {
-				kept++
-			}
+			d.AddFinding(finding)
 		}
-		assert.Equal(t, test.expectCount, kept)
+		assert.Len(t, d.findings, test.expectCount)
 	}
 }

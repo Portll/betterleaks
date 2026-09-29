@@ -45,15 +45,15 @@ func runStdIn(cmd *cobra.Command, _ []string) {
 	}
 
 	findings := newFindingCollector(mustGetStringFlag(cmd, "report-path") != "")
-	source := newStdinSource(os.Stdin, attrs, detector.SkipFunc(), mustGetIntFlag(cmd, "max-archive-depth"))
+	source := newStdinSource(os.Stdin, attrs, detector.SkipFunc(), detector.MaxArchiveDepth)
 	for result := range detector.Run(cmd.Context(), source) {
 		if result.Err != nil {
 			logging.Fatal().Err(result.Err).Msg("failed scan input from stdin")
 		}
-		collectFinding(cmd, findings, result.Finding)
+		collectFinding(detector, findings, result.Finding)
 	}
 
-	findingSummaryAndExit(cmd, detector, findings, exitCode, start, nil)
+	findingSummaryAndExit(detector, findings, exitCode, start, nil)
 }
 
 func newStdinSource(content io.Reader, attrs map[string]string, shouldSkip sources.SkipFunc, maxArchiveDepth int) sources.Source {

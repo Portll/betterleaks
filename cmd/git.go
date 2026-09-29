@@ -64,7 +64,6 @@ func runGit(cmd *cobra.Command, args []string) {
 	logOpts := mustGetStringFlag(cmd, "log-opts")
 	staged := mustGetBoolFlag(cmd, "staged")
 	preCommit := mustGetBoolFlag(cmd, "pre-commit")
-	maxArchiveDepth := mustGetIntFlag(cmd, "max-archive-depth")
 	gitWorkers := mustGetIntFlag(cmd, "git-workers")
 	sourceWorkers := mustGetIntFlag(cmd, "source-workers")
 	workers, workerErr := resolveGitWorkers(sourceWorkers, gitWorkers)
@@ -88,7 +87,7 @@ func runGit(cmd *cobra.Command, args []string) {
 			Cmd:             gitCmd,
 			ShouldSkip:      detector.SkipFunc(),
 			Platform:        scm.NoPlatform,
-			MaxArchiveDepth: maxArchiveDepth,
+			MaxArchiveDepth: detector.MaxArchiveDepth,
 			Workers:         workers,
 		}
 	} else {
@@ -103,7 +102,7 @@ func runGit(cmd *cobra.Command, args []string) {
 			ShouldSkip:      detector.SkipFunc(),
 			Platform:        resolvedPlatform,
 			RemoteURL:       remoteURL,
-			MaxArchiveDepth: maxArchiveDepth,
+			MaxArchiveDepth: detector.MaxArchiveDepth,
 			LogOpts:         logOpts,
 			Workers:         workers,
 		}
@@ -118,7 +117,7 @@ func runGit(cmd *cobra.Command, args []string) {
 			continue
 		}
 
-		collectFinding(cmd, findings, result.Finding)
+		collectFinding(detector, findings, result.Finding)
 	}
 
 	if n := len(scanErrs); n > 0 {
@@ -128,7 +127,7 @@ func runGit(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	findingSummaryAndExit(cmd, detector, findings, exitCode, start, err)
+	findingSummaryAndExit(detector, findings, exitCode, start, err)
 }
 
 func resolveGitWorkers(sourceWorkers, gitWorkers int) (int, error) {
