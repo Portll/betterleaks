@@ -1151,6 +1151,10 @@ source scanning. This is useful when the
 original source is unavailable or a standalone credential no longer has the
 provider context its detection regex expects.
 
+Select the rule with `--rule <rule-id>` or `--rule=<rule-id>`; bare
+`rule=<rule-id>` is not a flag. Analysis also reports observed capabilities and
+severity derived from those capabilities, when available.
+
 `validate` evaluates only the rule's `validate` expression. `analyze` requires a
 rule with an `analyze` expression and runs it after successful validation.
 Both commands share credential inputs, request controls, and text and JSONL

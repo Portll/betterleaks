@@ -5,7 +5,14 @@ type AnalyzeCmd struct {
 }
 
 func (*AnalyzeCmd) Help() string {
-	return "Validates a known credential, then resolves its identity and permissions when valid. The rule must define analysis; use config show ids --analysis to see supported rules. When the secret is omitted, it is read from piped or redirected stdin. Supply multipart credential components explicitly with --component."
+	return `Checks whether a credential is valid, then reports available identity, permissions, capabilities, and derived severity.
+
+Use --rule <rule-id> or --rule=<rule-id> to select the credential type.
+When the secret is omitted, it is read from piped or redirected stdin.
+
+Analysis runs only after successful validation.
+List supported rules with betterleaks config show ids --analysis.
+Supply multipart credential components with --component rule-id=secret and required captures with --capture name=value.`
 }
 
 func (cmd *AnalyzeCmd) Run(cli *CLI, runtime *commandRuntime) error {

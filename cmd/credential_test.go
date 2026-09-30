@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,11 +13,73 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alecthomas/kong"
 	configpkg "github.com/betterleaks/betterleaks/v2/config"
 	"github.com/betterleaks/betterleaks/v2/report"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCredentialCommandArgumentParsing(t *testing.T) {
+	for _, command := range []string{"validate", "analyze", "revoke"} {
+		for _, ruleArgs := range [][]string{{"--rule", "test-token"}, {"--rule=test-token"}} {
+			for _, secret := range []string{"fixture-secret", "rule=literal-secret", "value=with,commas=="} {
+				t.Run(command+"/"+strings.Join(ruleArgs, " ")+"/"+secret, func(t *testing.T) {
+					args := append([]string{command}, ruleArgs...)
+					args = append(args, "--component", "comp=part,with=equals", "--capture", "tenant=acme,inc", secret)
+					cli, err := parseCLIForTest(t, args...)
+					require.NoError(t, err)
+					flags := map[string]*CredentialFlags{
+						"validate": &cli.Validate.CredentialFlags,
+						"analyze":  &cli.Analyze.CredentialFlags,
+						"revoke":   &cli.Revoke.CredentialFlags,
+					}[command]
+					assert.Equal(t, "test-token", flags.RuleID)
+					assert.Equal(t, secret, flags.Secret)
+					assert.Equal(t, []string{"comp=part,with=equals"}, flags.Component)
+					assert.Equal(t, []string{"tenant=acme,inc"}, flags.Capture)
+				})
+			}
+		}
+	}
+}
+
+func TestCredentialCommandUsageErrorsDoNotEchoSecrets(t *testing.T) {
+	for _, command := range []string{"validate", "analyze", "revoke"} {
+		for _, test := range []struct {
+			name string
+			args []string
+			want string
+		}{
+			{"bare rule", []string{"rule=test-token", "fixture-sensitive-token"}, "use --rule <rule-id> or --rule=<rule-id>"},
+			{"bare rule with stdin", []string{"rule=test-token"}, "use --rule <rule-id> or --rule=<rule-id>"},
+			{"extra secret", []string{"--rule=test-token", "first-sensitive-token", "fixture-sensitive-token"}, "supply only one credential"},
+			{"literal extra secret", []string{"--rule", "test-token", "--", "first-sensitive-token", "fixture-sensitive-token"}, "supply only one credential"},
+		} {
+			t.Run(command+"/"+test.name, func(t *testing.T) {
+				args := append([]string{command}, test.args...)
+				_, err := parseCLIForTest(t, args...)
+				require.ErrorContains(t, err, test.want)
+				var parseErr *kong.ParseError
+				require.ErrorAs(t, err, &parseErr)
+				assert.Equal(t, command, parseErr.Context.Selected().Name)
+				assert.NotContains(t, err.Error(), "sensitive-token")
+
+				// Exercise the real usage/error printer as well as the parser.
+				root, stdout := newTestCLI(t)
+				var stderr bytes.Buffer
+				root.runtime.stderr = &stderr
+				var exitCode int
+				root.runtime.exit = func(code int) { exitCode = code }
+				require.NoError(t, runCLIWithErrorHandling(args, root.runtime))
+				assert.Equal(t, parseErr.ExitCode(), exitCode)
+				assert.Contains(t, stdout.String(), "Usage: betterleaks "+command)
+				assert.Contains(t, stderr.String(), test.want)
+				assert.NotContains(t, stdout.String()+stderr.String(), "sensitive-token")
+			})
+		}
+	}
+}
 
 func TestValidateCommandJSONL(t *testing.T) {
 	const secret = "live-secret"

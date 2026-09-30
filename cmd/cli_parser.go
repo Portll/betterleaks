@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"errors"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/alecthomas/kong"
 )
@@ -15,7 +17,38 @@ type cliParser struct {
 }
 
 func (p *cliParser) Parse(args []string) (*kong.Context, error) {
-	return p.Kong.Parse(p.commandFirstArgs(p.Model.Node, expandRuleFlagShorthands(args)))
+	ctx, err := p.Kong.Parse(p.commandFirstArgs(p.Model.Node, expandRuleFlagShorthands(args)))
+	return ctx, credentialParseError(err)
+}
+
+// Keep Kong's context and exit status, but never echo an unexpected positional
+// argument from a credential command: it may be the secret itself.
+type credentialUsageError struct {
+	*kong.ParseError
+	message string
+}
+
+func (e credentialUsageError) Error() string { return e.message }
+func (e credentialUsageError) Unwrap() error { return e.ParseError }
+
+func credentialParseError(err error) error {
+	var parseErr *kong.ParseError
+	if !errors.As(err, &parseErr) || parseErr.Context == nil {
+		return err
+	}
+	ctx := parseErr.Context
+	node := ctx.Selected()
+	if node == nil || (node.Name != "validate" && node.Name != "analyze" && node.Name != "revoke") {
+		return err
+	}
+	unexpected := strings.HasPrefix(err.Error(), "unexpected argument ")
+	if !flagWasSet(ctx, "rule") && (unexpected || strings.Contains(err.Error(), "missing flags: --rule")) {
+		return credentialUsageError{parseErr, "missing flags: --rule; use --rule <rule-id> or --rule=<rule-id>, followed by at most one credential (rule=<rule-id> is not a flag)"}
+	}
+	if unexpected {
+		return credentialUsageError{parseErr, "unexpected argument: supply only one credential, or omit it to read from stdin; use --component rule-id=secret for multipart credentials"}
+	}
+	return err
 }
 
 func (p *cliParser) commandFirstArgs(node *kong.Node, args []string) []string {
