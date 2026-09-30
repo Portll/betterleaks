@@ -59,7 +59,6 @@ Stable v2 releases update the tap's `betterleaks` cask and Docker `:v2` and
 `:latest` tags. Homebrew core updates separately. To keep v1 installed alongside
 v2, use `brew install --cask betterleaks/tap/betterleaks@1` (command:
 `betterleaks-v1`) or the Docker `:v1` tag.
-See [release channels and publishing](docs/releasing.md) for maintainer details.
 
 ### Usage
 
