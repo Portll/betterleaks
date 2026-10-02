@@ -323,6 +323,7 @@ func main() {
 		rules.MailerSendAPIToken(),
 		rules.MainframeCOBOLValueCredential(),
 		rules.MainframeEmbeddedSQLConnectPassword(),
+		rules.MainframeJCLNewPassword(),
 		rules.MainframeJCLPassword(),
 		rules.MapBox(),
 		rules.Mistral(),

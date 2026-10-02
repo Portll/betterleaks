@@ -36,6 +36,32 @@ func MainframeJCLPassword() *config.Rule {
 	return utils.Validate(r, tps, fps)
 }
 
+// A JOB card changes a password with PASSWORD=(old,new). jcl-racf-password reports the old one;
+// this reports the new one, so each has its own finding and fingerprint.
+func MainframeJCLNewPassword() *config.Rule {
+	r := config.Rule{
+		ID:          "jcl-racf-new-password",
+		Description: "Identified a new RACF password set in a JCL statement, exposing the z/OS user ID it signs on.",
+		Confidence:  "medium",
+		Regex:       `(?im)^//[^*\n][^\n]*?\bPASSWORD=\([A-Z0-9@#$]{1,8},([A-Z0-9@#$]{1,8})\)`,
+		ValueGroup:  1,
+		Keywords:    []string{"password="},
+		FilterExpr:  "matchesAny(finding[\"secret\"], [`" + racfPlaceholder + "`])",
+	}
+
+	tps := []string{
+		`//NIGHTLY  JOB (ACCT),USER=BATCH01,PASSWORD=(Q9W8E7R6,Z1X2C3V4)`,
+		`//nightly  job (acct),user=batch01,password=(q9w8e7r6,z1x2c3v4),class=a`,
+	}
+	fps := []string{
+		`//PAYROLL  JOB (ACCT),USER=PAYADM,PASSWORD=K7QX2MPL`,             // no new password
+		`//NIGHTLY  JOB (ACCT),USER=BATCH01,PASSWORD=(&OLD,&NEW)`,         // symbolic parameters
+		`//NIGHTLY  JOB (ACCT),USER=BATCH01,PASSWORD=(Q9W8E7R6,XXXXXXXX)`, // placeholder
+		`//* PASSWORD=(Q9W8E7R6,Z1X2C3V4) mentioned in a comment line`,    // JCL comment
+	}
+	return utils.Validate(r, tps, fps)
+}
+
 func MainframeCOBOLValueCredential() *config.Rule {
 	r := config.Rule{
 		ID:          "cobol-value-credential",
@@ -43,7 +69,7 @@ func MainframeCOBOLValueCredential() *config.Rule {
 		Confidence:  "medium",
 		// Levels 01-49 and 77 hold data; a level-88 condition name does not. TOKEN alone in a
 		// COBOL name is usually a parser or SQL token, so only credential tokens count.
-		Regex:    `(?im)^[^*\n]{0,7}\s*\b(?:0?[1-9]|[1-4][0-9]|77)\s+[A-Z0-9-]*(?:PASSWORD|PASSWD|PASSWRD|PSWD|PWD|SECRET|APIKEY|API-KEY|ACCESS-KEY|(?:API|ACCESS|AUTH|BEARER|OAUTH|REFRESH)-?TOKEN)[A-Z0-9-]*\b[^\n.]*?\bVALUES?\s+(?:IS\s+|ARE\s+)?(?:'([^'\n]{1,})'|"([^"\n]{1,})")`,
+		Regex:    `(?im)^[^*\n]{0,7}\s*\b(?:0?[1-9]|[1-4][0-9]|77)\s+[A-Z0-9-]*(?:PASSWORD|PASSWD|PASSWRD|PSWD|PWD|SECRET|APIKEY|API-KEY|ACCESS-KEY|(?:API|ACCESS|AUTH|BEARER|OAUTH|REFRESH)-?TOKEN)[A-Z0-9-]*\b[^.]*?\bVALUES?\s+(?:IS\s+|ARE\s+)?(?:'([^'\n]{1,})'|"([^"\n]{1,})")`,
 		Path:     `(?i)\.(?:cbl|cob|cobol|cpy|copy|sqb|pco|ccp)$`,
 		Keywords: []string{"password", "passwd", "passwrd", "pswd", "pwd", "secret", "apikey", "api-key", "access-key", "token"},
 		FilterExpr: "matchesAny(finding[\"secret\"], [`" +
@@ -56,20 +82,22 @@ func MainframeCOBOLValueCredential() *config.Rule {
 		"api.cob":     `       01 WS-API-TOKEN        PIC X(20) VALUE "ghx8Kq2LmPz7Rt4Vw9Ys".`,
 		"FTPPARM.CPY": `           05  FTP-PASSWD     PIC X(08) VALUE IS 'M4INFR4M'.`,
 		"auth.cpy":    `           05  WS-AUTH-TOKEN  PIC X(20) VALUE 'q8Lm2Zp7Rt4Vw9YsKx3N'.`,
+		"multi.cbl":   "       01 WS-DB-PASSWORD      PIC X(16)\n           VALUE 'Tr0ub4dor3xQz9'.",
 	}
 	fps := map[string]string{
-		"a.cbl":     `       01 WS-DB-PASSWORD      PIC X(16) VALUE SPACES.`,            // figurative constant
-		"b.cbl":     `       01 WS-PASSWORD-PROMPT  PIC X(20) VALUE 'Enter password:'.`, // prompt text
-		"c.cbl":     `       01 WS-PASSWORD-MASK    PIC X(8)  VALUE '********'.`,        // mask
-		"d.cbl":     `      *01 WS-OLD-PASSWORD     PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,  // comment line
-		"login.txt": `       01 WS-DB-PASSWORD      PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,  // not COBOL source
-		"e.cbl":     `       01 WS-CUSTOMER-NAME    PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,  // not a credential name
-		"f.cbl":     `           88 PASSWORD-OK               VALUE 'Y'.`,               // condition name
-		"g.cbl":     `              88 TOKEN-IS-CICS-RESERVED VALUE 'ABCODE'.`,          // condition name
-		"h.cbl":     `     88 TOKEN-KEY VALUE '1'.`,                                     // free-format condition name
-		"i.cbl":     `       01 WS-PASSWORD-STATE   PIC X     VALUE 'N'.`,               // flag value
-		"j.cbl":     `           05 WS-TOKEN        PIC X(30) VALUE 'UNKNOWN'.`,         // parser token
-		"k.cbl":     `       77 SQL-SYNTAX-TOKEN-MISSING PIC X(5) VALUE '37501'.`,       // SQLSTATE
+		"a.cbl":     `       01 WS-DB-PASSWORD      PIC X(16) VALUE SPACES.`,                         // figurative constant
+		"b.cbl":     `       01 WS-PASSWORD-PROMPT  PIC X(20) VALUE 'Enter password:'.`,              // prompt text
+		"c.cbl":     `       01 WS-PASSWORD-MASK    PIC X(8)  VALUE '********'.`,                     // mask
+		"d.cbl":     `      *01 WS-OLD-PASSWORD     PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,               // comment line
+		"login.txt": `       01 WS-DB-PASSWORD      PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,               // not COBOL source
+		"e.cbl":     `       01 WS-CUSTOMER-NAME    PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,               // not a credential name
+		"f.cbl":     `           88 PASSWORD-OK               VALUE 'Y'.`,                            // condition name
+		"g.cbl":     `              88 TOKEN-IS-CICS-RESERVED VALUE 'ABCODE'.`,                       // condition name
+		"h.cbl":     `     88 TOKEN-KEY VALUE '1'.`,                                                  // free-format condition name
+		"i.cbl":     `       01 WS-PASSWORD-STATE   PIC X     VALUE 'N'.`,                            // flag value
+		"j.cbl":     `           05 WS-TOKEN        PIC X(30) VALUE 'UNKNOWN'.`,                      // parser token
+		"k.cbl":     `       77 SQL-SYNTAX-TOKEN-MISSING PIC X(5) VALUE '37501'.`,                    // SQLSTATE
+		"l.cbl":     "       01 WS-PASSWORD-AREA.\n           05 WS-NAME PIC X(8) VALUE 'Tr0ub4do'.", // entry ends before the VALUE
 	}
 	return utils.ValidateWithPaths(r, tps, fps)
 }

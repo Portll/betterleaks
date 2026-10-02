@@ -2227,7 +2227,7 @@ let r = http.get("https://api.cloudsmith.io/user/self/", {
 [[rules]]
 id = "cobol-value-credential"
 description = "Identified a COBOL data item named for a credential with a literal VALUE, embedding the credential in the program."
-regex = '''(?im)^[^*\n]{0,7}\s*\b(?:0?[1-9]|[1-4][0-9]|77)\s+[A-Z0-9-]*(?:PASSWORD|PASSWD|PASSWRD|PSWD|PWD|SECRET|APIKEY|API-KEY|ACCESS-KEY|(?:API|ACCESS|AUTH|BEARER|OAUTH|REFRESH)-?TOKEN)[A-Z0-9-]*\b[^\n.]*?\bVALUES?\s+(?:IS\s+|ARE\s+)?(?:'([^'\n]{1,})'|"([^"\n]{1,})")'''
+regex = '''(?im)^[^*\n]{0,7}\s*\b(?:0?[1-9]|[1-4][0-9]|77)\s+[A-Z0-9-]*(?:PASSWORD|PASSWD|PASSWRD|PSWD|PWD|SECRET|APIKEY|API-KEY|ACCESS-KEY|(?:API|ACCESS|AUTH|BEARER|OAUTH|REFRESH)-?TOKEN)[A-Z0-9-]*\b[^.]*?\bVALUES?\s+(?:IS\s+|ARE\s+)?(?:'([^'\n]{1,})'|"([^"\n]{1,})")'''
 path = '''(?i)\.(?:cbl|cob|cobol|cpy|copy|sqb|pco|ccp)$'''
 confidence = "medium"
 keywords = [
@@ -7388,6 +7388,20 @@ let r = http.post("https://api.ionic.io/graphql", {
 '''
 filter = '''
 entropy(finding["secret"]) < 3.5
+'''
+
+# ──────────────────────────────────────────────────────────────────────────────
+# jcl-racf-new-password
+# ──────────────────────────────────────────────────────────────────────────────
+[[rules]]
+id = "jcl-racf-new-password"
+description = "Identified a new RACF password set in a JCL statement, exposing the z/OS user ID it signs on."
+regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\([A-Z0-9@#$]{1,8},([A-Z0-9@#$]{1,8})\)'''
+valueGroup = 1
+confidence = "medium"
+keywords = ["password="]
+filter = '''
+matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|secret|dummy|changeme|password|newpass(?:word)?|oldpass(?:word)?)$`])
 '''
 
 # ──────────────────────────────────────────────────────────────────────────────
