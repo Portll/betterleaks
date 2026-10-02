@@ -73,7 +73,7 @@ func MainframeCOBOLValueCredential() *config.Rule {
 		Path:     `(?i)\.(?:cbl|cob|cobol|cpy|copy|sqb|pco|ccp)$`,
 		Keywords: []string{"password", "passwd", "passwrd", "pswd", "pwd", "secret", "apikey", "api-key", "access-key", "token"},
 		FilterExpr: "matchesAny(finding[\"secret\"], [`" +
-			`(?i)^(?:x+|\*+|\s+|y|n|yes|no|true|false|on|off|[01]|pass(?:word)?|secret|dummy|changeme|password:?|enter.*|invalid.*|wrong.*)$` +
+			`(?i)^(?:x+|\*+|\s+|y|n|yes|no|true|false|on|off|[01]|pass(?:word)?|secret|dummy|changeme|password:?|enter.*|invalid.*|wrong.*|.*\S\s+\S.*)$` +
 			"`])",
 	}
 
@@ -85,19 +85,20 @@ func MainframeCOBOLValueCredential() *config.Rule {
 		"multi.cbl":   "       01 WS-DB-PASSWORD      PIC X(16)\n           VALUE 'Tr0ub4dor3xQz9'.",
 	}
 	fps := map[string]string{
-		"a.cbl":     `       01 WS-DB-PASSWORD      PIC X(16) VALUE SPACES.`,                         // figurative constant
-		"b.cbl":     `       01 WS-PASSWORD-PROMPT  PIC X(20) VALUE 'Enter password:'.`,              // prompt text
-		"c.cbl":     `       01 WS-PASSWORD-MASK    PIC X(8)  VALUE '********'.`,                     // mask
-		"d.cbl":     `      *01 WS-OLD-PASSWORD     PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,               // comment line
-		"login.txt": `       01 WS-DB-PASSWORD      PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,               // not COBOL source
-		"e.cbl":     `       01 WS-CUSTOMER-NAME    PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,               // not a credential name
-		"f.cbl":     `           88 PASSWORD-OK               VALUE 'Y'.`,                            // condition name
-		"g.cbl":     `              88 TOKEN-IS-CICS-RESERVED VALUE 'ABCODE'.`,                       // condition name
-		"h.cbl":     `     88 TOKEN-KEY VALUE '1'.`,                                                  // free-format condition name
-		"i.cbl":     `       01 WS-PASSWORD-STATE   PIC X     VALUE 'N'.`,                            // flag value
-		"j.cbl":     `           05 WS-TOKEN        PIC X(30) VALUE 'UNKNOWN'.`,                      // parser token
-		"k.cbl":     `       77 SQL-SYNTAX-TOKEN-MISSING PIC X(5) VALUE '37501'.`,                    // SQLSTATE
-		"l.cbl":     "       01 WS-PASSWORD-AREA.\n           05 WS-NAME PIC X(8) VALUE 'Tr0ub4do'.", // entry ends before the VALUE
+		"a.cbl":     `       01 WS-DB-PASSWORD      PIC X(16) VALUE SPACES.`,                                           // figurative constant
+		"b.cbl":     `       01 WS-PASSWORD-PROMPT  PIC X(20) VALUE 'Enter password:'.`,                                // prompt text
+		"c.cbl":     `       01 WS-PASSWORD-MASK    PIC X(8)  VALUE '********'.`,                                       // mask
+		"d.cbl":     `      *01 WS-OLD-PASSWORD     PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,                                 // comment line
+		"login.txt": `       01 WS-DB-PASSWORD      PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,                                 // not COBOL source
+		"e.cbl":     `       01 WS-CUSTOMER-NAME    PIC X(16) VALUE 'Tr0ub4dor3xQz9'.`,                                 // not a credential name
+		"f.cbl":     `           88 PASSWORD-OK               VALUE 'Y'.`,                                              // condition name
+		"g.cbl":     `              88 TOKEN-IS-CICS-RESERVED VALUE 'ABCODE'.`,                                         // condition name
+		"h.cbl":     `     88 TOKEN-KEY VALUE '1'.`,                                                                    // free-format condition name
+		"i.cbl":     `       01 WS-PASSWORD-STATE   PIC X     VALUE 'N'.`,                                              // flag value
+		"j.cbl":     `           05 WS-TOKEN        PIC X(30) VALUE 'UNKNOWN'.`,                                        // parser token
+		"k.cbl":     `       77 SQL-SYNTAX-TOKEN-MISSING PIC X(5) VALUE '37501'.`,                                      // SQLSTATE
+		"m.cbl":     "       01 WS-PASSWORD-ERROR   PIC X(40)\n           VALUE \"Password must be 8-12 characters\".", // message text
+		"l.cbl":     "       01 WS-PASSWORD-AREA.\n           05 WS-NAME PIC X(8) VALUE 'Tr0ub4do'.",                   // entry ends before the VALUE
 	}
 	return utils.ValidateWithPaths(r, tps, fps)
 }

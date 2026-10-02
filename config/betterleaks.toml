@@ -2243,7 +2243,7 @@ keywords = [
     "token",
 ]
 filter = '''
-matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|\s+|y|n|yes|no|true|false|on|off|[01]|pass(?:word)?|secret|dummy|changeme|password:?|enter.*|invalid.*|wrong.*)$`])
+matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|\s+|y|n|yes|no|true|false|on|off|[01]|pass(?:word)?|secret|dummy|changeme|password:?|enter.*|invalid.*|wrong.*|.*\S\s+\S.*)$`])
 '''
 
 # ──────────────────────────────────────────────────────────────────────────────
