@@ -7396,7 +7396,7 @@ entropy(finding["secret"]) < 3.5
 [[rules]]
 id = "jcl-racf-new-password"
 description = "Identified a new RACF password or password phrase set in a JCL statement, exposing the z/OS user ID it signs on."
-regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\((?:[A-Z0-9@#$]{1,8}|'(?:[^'\n]|'')*'),(?:([A-Z0-9@#$]{1,8})\)|'((?:[^'\n]|'')+)'\))'''
+regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\((?:[A-Z0-9@#$]{1,8}|'(?:[^'\n]|'')*'),(?:([A-Z0-9@#$]{1,8})\)|'((?:[^'\n]|'')+)(?:'\)|$))'''
 confidence = "medium"
 keywords = ["password="]
 filter = '''
@@ -7409,7 +7409,7 @@ matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|sec
 [[rules]]
 id = "jcl-racf-password"
 description = "Identified a RACF password or password phrase in a JCL statement, exposing the z/OS user ID it signs on."
-regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\(?(?:([A-Z0-9@#$]{1,8})(?:[,)'\s]|$)|'((?:[^'\n]|'')+)')'''
+regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\(?(?:([A-Z0-9@#$]{1,8})(?:[,)'\s]|$)|'((?:[^'\n]|'')+)(?:'|$))'''
 confidence = "medium"
 keywords = ["password="]
 filter = '''

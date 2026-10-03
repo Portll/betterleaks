@@ -7,7 +7,8 @@ import (
 
 // RACF passwords are one to eight characters from A-Z, 0-9, @, # and $, and a real one is often a
 // word with a digit, so these filters drop known placeholders rather than low entropy. A password
-// phrase, or a password with any other character, is written in apostrophes.
+// phrase, or a password with any other character, is written in apostrophes, and one that reaches
+// column 71 continues on the next statement, so its first part is reported.
 const racfPlaceholder = `(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|secret|dummy|changeme|password|newpass(?:word)?|oldpass(?:word)?|&[A-Z0-9@#$]{1,8}\.?|(?:your[-_ ]?)?pass(?:word)?[-_ ]?phrase)$`
 
 func MainframeJCLPassword() *config.Rule {
@@ -15,7 +16,7 @@ func MainframeJCLPassword() *config.Rule {
 		ID:          "jcl-racf-password",
 		Description: "Identified a RACF password or password phrase in a JCL statement, exposing the z/OS user ID it signs on.",
 		Confidence:  "medium",
-		Regex:       `(?im)^//[^*\n][^\n]*?\bPASSWORD=\(?(?:([A-Z0-9@#$]{1,8})(?:[,)'\s]|$)|'((?:[^'\n]|'')+)')`,
+		Regex:       `(?im)^//[^*\n][^\n]*?\bPASSWORD=\(?(?:([A-Z0-9@#$]{1,8})(?:[,)'\s]|$)|'((?:[^'\n]|'')+)(?:'|$))`,
 		Keywords:    []string{"password="},
 		FilterExpr:  "matchesAny(finding[\"secret\"], [`" + racfPlaceholder + "`])",
 	}
@@ -28,6 +29,8 @@ func MainframeJCLPassword() *config.Rule {
 		`//         PASSWORD='p9[Kz'`,                                            // special character, so in apostrophes
 		`//PJOB     JOB (ACCT),'RUN',USER=PAYUSR,PASSWORD='Blue Heron Rides 42'`, // password phrase
 		`//NJOB     JOB (ACCT),USER=AUSER,PASSWORD=(AUSER12,'Sm1th#x')`,          // old password
+
+		"//             PASSWORD='Blue Heron Rides Over Wide Rivers At Dawn Whil\n//             e Stars Fade 42'", // phrase continued in column 16
 	}
 	fps := []string{
 		`//PAYROLL  JOB (ACCT),'RUN',CLASS=A,USER=&SYSUID,PASSWORD=&PW`, // symbolic parameter
@@ -50,7 +53,7 @@ func MainframeJCLNewPassword() *config.Rule {
 		ID:          "jcl-racf-new-password",
 		Description: "Identified a new RACF password or password phrase set in a JCL statement, exposing the z/OS user ID it signs on.",
 		Confidence:  "medium",
-		Regex:       `(?im)^//[^*\n][^\n]*?\bPASSWORD=\((?:[A-Z0-9@#$]{1,8}|'(?:[^'\n]|'')*'),(?:([A-Z0-9@#$]{1,8})\)|'((?:[^'\n]|'')+)'\))`,
+		Regex:       `(?im)^//[^*\n][^\n]*?\bPASSWORD=\((?:[A-Z0-9@#$]{1,8}|'(?:[^'\n]|'')*'),(?:([A-Z0-9@#$]{1,8})\)|'((?:[^'\n]|'')+)(?:'\)|$))`,
 		Keywords:    []string{"password="},
 		FilterExpr:  "matchesAny(finding[\"secret\"], [`" + racfPlaceholder + "`])",
 	}
@@ -60,6 +63,8 @@ func MainframeJCLNewPassword() *config.Rule {
 		`//nightly  job (acct),user=batch01,password=(q9w8e7r6,z1x2c3v4),class=a`,
 		`//NJOB     JOB (ACCT),USER=AUSER,PASSWORD=(AUSER12,'Sm1th#x')`,                          // new value in apostrophes
 		`//PJOB     JOB (ACCT),USER=PAYUSR,PASSWORD=('Blue Heron Rides 42','Grey Owl Flies 17')`, // phrases
+
+		"//NJOB     JOB (ACCT),USER=AUSER,PASSWORD=('Blue Heron 42','Grey Owl Fl\n//             ies Over Fields 17')", // new phrase continued in column 16
 	}
 	fps := []string{
 		`//PAYROLL  JOB (ACCT),USER=PAYADM,PASSWORD=K7QX2MPL`,             // no new password
