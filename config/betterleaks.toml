@@ -2227,7 +2227,7 @@ let r = http.get("https://api.cloudsmith.io/user/self/", {
 [[rules]]
 id = "cobol-value-credential"
 description = "Identified a COBOL data item named for a credential with a literal VALUE, embedding the credential in the program."
-regex = '''(?im)^[^*\n]{0,7}\s*\b(?:0?[1-9]|[1-4][0-9]|77)\s+[A-Z0-9-]*(?:PASSWORD|PASSWD|PASSWRD|PSWD|PWD|SECRET|APIKEY|API-KEY|ACCESS-KEY|(?:API|ACCESS|AUTH|BEARER|OAUTH|REFRESH)-?TOKEN)[A-Z0-9-]*\b[^.]*?\bVALUES?\s+(?:IS\s+|ARE\s+)?(?:'([^'\n]{1,})'|"([^"\n]{1,})")'''
+regex = '''(?im)^(?:(?:[^*\n]{0,6}|[^*\n]{6}[^*/\n])\s*\b|[^*\n]{6}[Dd])(?:0?[1-9]|[1-4][0-9]|77)\s+[A-Z0-9-]*(?:PASSWORD|PASSWD|PASSWRD|PSWD|PWD|SECRET|APIKEY|API-KEY|ACCESS-KEY|(?:API|ACCESS|AUTH|BEARER|OAUTH|REFRESH)-?TOKEN)[A-Z0-9-]*\b[^.]*?\bVALUES?\s+(?:IS\s+|ARE\s+)?(?:NX|UX|[XNGZU])?(?:'([^'\n]{1,})(?:'|$)|"([^"\n]{1,})(?:"|$))'''
 path = '''(?i)\.(?:cbl|cob|cobol|cpy|copy|sqb|pco|ccp)$'''
 confidence = "medium"
 keywords = [
@@ -2243,7 +2243,7 @@ keywords = [
     "token",
 ]
 filter = '''
-matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|\s+|y|n|yes|no|true|false|on|off|[01]|pass(?:word)?|secret|dummy|changeme|password:?|enter.*|invalid.*|wrong.*|.*\S\s+\S.*)$`])
+matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|\s+|y|n|yes|no|true|false|on|off|[01]|pass(?:word)?|secret|dummy|changeme|password:?|enter.*|invalid.*|wrong.*|.*\S\s+\S.*)$`]) || matchesAny(finding["match"], [`(?i)VALUES?\s+(?:IS\s+|ARE\s+)?(?:NX|UX|X)['"](?:[0-9A-F]{1,7}|0+|(?:40)+|(?:20)+|F+|(?:F0)+)['"]`])
 '''
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -7395,13 +7395,12 @@ entropy(finding["secret"]) < 3.5
 # ──────────────────────────────────────────────────────────────────────────────
 [[rules]]
 id = "jcl-racf-new-password"
-description = "Identified a new RACF password set in a JCL statement, exposing the z/OS user ID it signs on."
-regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\([A-Z0-9@#$]{1,8},([A-Z0-9@#$]{1,8})\)'''
-valueGroup = 1
+description = "Identified a new RACF password or password phrase set in a JCL statement, exposing the z/OS user ID it signs on."
+regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\((?:[A-Z0-9@#$]{1,8}|'(?:[^'\n]|'')*'),(?:([A-Z0-9@#$]{1,8})\)|'((?:[^'\n]|'')+)'\))'''
 confidence = "medium"
 keywords = ["password="]
 filter = '''
-matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|secret|dummy|changeme|password|newpass(?:word)?|oldpass(?:word)?)$`])
+matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|secret|dummy|changeme|password|newpass(?:word)?|oldpass(?:word)?|&[A-Z0-9@#$]{1,8}\.?|(?:your[-_ ]?)?pass(?:word)?[-_ ]?phrase)$`])
 '''
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -7409,13 +7408,12 @@ matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|sec
 # ──────────────────────────────────────────────────────────────────────────────
 [[rules]]
 id = "jcl-racf-password"
-description = "Identified a RACF password in a JCL statement, exposing the z/OS user ID it signs on."
-regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\(?([A-Z0-9@#$]{1,8})(?:[,)'\s]|$)'''
-valueGroup = 1
+description = "Identified a RACF password or password phrase in a JCL statement, exposing the z/OS user ID it signs on."
+regex = '''(?im)^//[^*\n][^\n]*?\bPASSWORD=\(?(?:([A-Z0-9@#$]{1,8})(?:[,)'\s]|$)|'((?:[^'\n]|'')+)')'''
 confidence = "medium"
 keywords = ["password="]
 filter = '''
-matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|secret|dummy|changeme|password|newpass(?:word)?|oldpass(?:word)?)$`])
+matchesAny(finding["secret"], [`(?i)^(?:x+|\*+|y+|n+|pass|passw(?:or)?d?|pwd|secret|dummy|changeme|password|newpass(?:word)?|oldpass(?:word)?|&[A-Z0-9@#$]{1,8}\.?|(?:your[-_ ]?)?pass(?:word)?[-_ ]?phrase)$`])
 '''
 
 # ──────────────────────────────────────────────────────────────────────────────
